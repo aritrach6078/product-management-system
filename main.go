@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -9,16 +10,19 @@ import (
 	"os"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/nfnt/resize"
 	"github.com/streadway/amqp"
 )
 
+// Process an image from the message
 func processImage(message string) {
 	trimmedMessage := strings.TrimSpace(message) // Remove extra whitespace or newline
 	log.Printf("Processing image URL: %s", trimmedMessage)
 
 	// Step 1: Download the image from the URL
-	response, err := http.Get(trimmedMessage) // Use trimmedMessage
+	response, err := http.Get(trimmedMessage)
 	if err != nil {
 		log.Printf("Failed to download image: %v", err)
 		return
@@ -64,8 +68,49 @@ func processImage(message string) {
 	}
 
 	log.Printf("Processed image saved as '%s'", outputFileName)
+
+	// Step 5: Upload the processed image to S3
+	err = uploadToS3(outputFileName)
+	if err != nil {
+		log.Printf("Failed to upload image to S3: %v", err)
+	} else {
+		log.Printf("Image '%s' successfully uploaded to S3!", outputFileName)
+	}
 }
 
+// Upload a file to S3
+func uploadToS3(fileName string) error {
+	// Load AWS SDK configuration
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("ap-south-1"))
+	if err != nil {
+		return err
+	}
+
+	// Create S3 client
+	client := s3.NewFromConfig(cfg)
+
+	// Open the file for reading
+	file, err := os.Open(fileName)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Upload the file to the S3 bucket
+	bucketName := "product-management-aritra"
+	_, err = client.PutObject(context.TODO(), &s3.PutObjectInput{
+		Bucket: &bucketName,
+		Key:    &fileName,
+		Body:   file,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Start RabbitMQ consumer
 func startConsumer() {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	if err != nil {
@@ -116,6 +161,7 @@ func startConsumer() {
 	<-forever
 }
 
+// Main function
 func main() {
 	log.Println("Starting RabbitMQ Consumer...")
 	startConsumer()
