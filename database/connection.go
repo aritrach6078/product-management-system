@@ -1,25 +1,26 @@
 package database
 
 import (
-	"context"
-	"fmt"
-	"os"
+	"database/sql"
+	"log"
 
-	"github.com/jackc/pgx/v5"
+	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
-// Conn is the global database connection instance
-var Conn *pgx.Conn
+var DB *sql.DB // Exported database connection instance
 
-// Connect initializes the database connection
-func Connect() {
+// InitDB initializes the database connection
+func InitDB() {
 	var err error
-	// PostgreSQL connection string
-	url := "postgres://aritrach6078:Aritra@database123@localhost:5432/product_management?sslmode=disable"
-	Conn, err = pgx.Connect(context.Background(), url)
+	DB, err = sql.Open("postgres", "user=postgres password=Aritra@database123 dbname=product_management sslmode=disable")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("Failed to connect to the database: %v", err)
 	}
-	fmt.Println("Connected to the database!")
+
+	err = DB.Ping()
+	if err != nil {
+		log.Fatalf("Failed to ping the database: %v", err)
+	}
+
+	log.Println("Database connected successfully!")
 }

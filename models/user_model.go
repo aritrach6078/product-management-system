@@ -1,10 +1,8 @@
 package models
 
 import (
-	"context"
+	"database/sql"
 	"fmt"
-
-	"github.com/jackc/pgx/v5"
 )
 
 // User represents the structure of the user table
@@ -26,8 +24,8 @@ type Product struct {
 }
 
 // FetchAllUsers retrieves all users from the database
-func FetchAllUsers(conn *pgx.Conn) ([]User, error) {
-	rows, err := conn.Query(context.Background(), "SELECT id, name, email FROM users")
+func FetchAllUsers(db *sql.DB) ([]User, error) {
+	rows, err := db.Query("SELECT id, name, email FROM users")
 	if err != nil {
 		fmt.Println("Error querying the database:", err)
 		return nil, err
@@ -48,8 +46,8 @@ func FetchAllUsers(conn *pgx.Conn) ([]User, error) {
 }
 
 // FetchAllProducts retrieves all products from the database
-func FetchAllProducts(conn *pgx.Conn) ([]Product, error) {
-	rows, err := conn.Query(context.Background(), "SELECT id, user_id, product_name, product_description, product_images, product_price, compressed_product FROM products")
+func FetchAllProducts(db *sql.DB) ([]Product, error) {
+	rows, err := db.Query("SELECT id, user_id, product_name, product_description, product_images, product_price, compressed_product FROM products")
 	if err != nil {
 		fmt.Println("Error querying the database:", err)
 		return nil, err
@@ -70,9 +68,8 @@ func FetchAllProducts(conn *pgx.Conn) ([]Product, error) {
 }
 
 // AddProduct inserts a new product into the database
-func AddProduct(conn *pgx.Conn, product Product) error {
-	_, err := conn.Exec(
-		context.Background(),
+func AddProduct(db *sql.DB, product Product) error {
+	_, err := db.Exec(
 		`INSERT INTO products (user_id, product_name, product_description, product_images, product_price, compressed_product)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
 		product.UserID, product.ProductName, product.ProductDescription, product.ProductImages, product.ProductPrice, product.CompressedProduct,

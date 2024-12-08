@@ -10,13 +10,16 @@ import (
 	"os"
 	"strings"
 
+	"github.com/aritrach6078/product-management-system/api"      // API handlers
+	"github.com/aritrach6078/product-management-system/database" // PostgreSQL Database initialization
+	"github.com/aritrach6078/product-management-system/redis"    // Redis initialization
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/nfnt/resize"
 	"github.com/streadway/amqp"
 )
 
-// Process an image from the message
+// Process an image from the RabbitMQ message
 func processImage(message string) {
 	trimmedMessage := strings.TrimSpace(message) // Remove extra whitespace or newline
 	log.Printf("Processing image URL: %s", trimmedMessage)
@@ -30,10 +33,7 @@ func processImage(message string) {
 	defer response.Body.Close()
 
 	// Step 2: Decode the image
-	var img image.Image
-	var format string
-
-	img, format, err = image.Decode(response.Body)
+	img, format, err := image.Decode(response.Body)
 	if err != nil {
 		log.Printf("Failed to decode image: %v", err)
 		return
@@ -80,38 +80,30 @@ func processImage(message string) {
 
 // Upload a file to S3
 func uploadToS3(fileName string) error {
-	// Load AWS SDK configuration
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("ap-south-1"))
 	if err != nil {
 		return err
 	}
 
-	// Create S3 client
 	client := s3.NewFromConfig(cfg)
 
-	// Open the file for reading
 	file, err := os.Open(fileName)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	// Upload the file to the S3 bucket
 	bucketName := "product-management-aritra"
 	_, err = client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket: &bucketName,
 		Key:    &fileName,
 		Body:   file,
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // Start RabbitMQ consumer
-func startConsumer() {
+func startRabbitMQConsumer() {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	if err != nil {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
@@ -149,20 +141,32 @@ func startConsumer() {
 		log.Fatalf("Failed to register a consumer: %v", err)
 	}
 
-	forever := make(chan bool)
-
 	go func() {
 		for d := range msgs {
 			log.Printf("Received a message: %s", d.Body)
 			processImage(string(d.Body))
 		}
 	}()
-	log.Println("Waiting for messages. To exit press CTRL+C")
-	<-forever
+	log.Println("RabbitMQ consumer is running. Waiting for messages...")
 }
 
-// Main function
 func main() {
+	// Initialize Redis
+	log.Println("Initializing Redis...")
+	redis.InitializeRedis()
+
+	// Initialize PostgreSQL Database
+	log.Println("Initializing Database...")
+	database.InitDB()
+
+	// Start RabbitMQ Consumer
 	log.Println("Starting RabbitMQ Consumer...")
-	startConsumer()
+	go startRabbitMQConsumer()
+
+	// Start the HTTP server
+	log.Println("Starting the HTTP server on port 8080...")
+	err := http.ListenAndServe(":8080", api.Router()) // Ensure `api.Router()` is correctly implemented
+	if err != nil {
+		log.Fatalf("Failed to start the HTTP server: %v", err)
+	}
 }
