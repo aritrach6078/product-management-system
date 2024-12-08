@@ -22,7 +22,7 @@ type Product struct {
 	ProductDescription string  `json:"product_description"`
 	ProductImages      string  `json:"product_images"`
 	ProductPrice       float64 `json:"product_price"`
-	CompressedProduct  string  `json:"compressed_product"`
+	CompressedProduct  string  `json:"compressed_product"` // For storing compressed image URL
 }
 
 // FetchAllUsers retrieves all users from the database
